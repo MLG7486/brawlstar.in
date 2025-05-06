@@ -1,28 +1,66 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>brawlstar.in</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden
-        }
-    .background {
-    width: 100vw;
-    height: 100vh;
-    background: url('Wide 8Bit.png') center/contain no-repeat;
+<script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.157.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.157.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.157.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script id="vhsShader" type="x-shader/x-fragment">
+uniform sampler2D tDiffuse;
+uniform float time;
+varying vec2 vUv;
+
+void main() {
+    vec2 uv = vUv;
+
+    // VHS distortion
+    float y = sin(uv.y * 200.0 + time * 10.0) * 0.005;
+    uv.x += y;
+
+    // RGB split
+    vec4 colR = texture2D(tDiffuse, uv + vec2(0.003, 0.0));
+    vec4 colG = texture2D(tDiffuse, uv);
+    vec4 colB = texture2D(tDiffuse, uv - vec2(0.003, 0.0));
+
+    // Combine with scanlines
+    float scanline = sin(uv.y * 800.0) * 0.1;
+    vec4 color = vec4(colR.r, colG.g, colB.b, 1.0);
+    color.rgb -= scanline;
+
+    gl_FragColor = color;
+}
+</script>
+<body style="margin:0;overflow:hidden;">
+<canvas id="canvas"></canvas>
+<script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
+    camera.position.z = 5;
+
+    const composer = new THREE.EffectComposer(renderer);
+    composer.addPass(new THREE.RenderPass(scene, camera));
+
+    const vhsShader = {
+        uniforms: {
+            "tDiffuse": { value: null },
+            "time": { value: 0.0 }
+        },
+        fragmentShader: document.getElementById('vhsShader').textContent
+    };
+    const shaderPass = new THREE.ShaderPass(vhsShader);
+    composer.addPass(shaderPass);
+
+    function animate(time) {
+        requestAnimationFrame(animate);
+        cube.rotation.x += 0.01;
+        cube.rotation.y += 0.01;
+        shaderPass.uniforms.time.value = time * 0.001;
+        composer.render();
     }
-    </style>
-</head>
-<body>
-    <div class="background"></div>
+    animate();
+</script>
 </body>
-</html>
